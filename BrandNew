@@ -1,0 +1,235 @@
+package com.fmr.PR000029.rtc.workitem.automation;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.NullProgressMonitor;
+
+import com.ibm.team.repository.client.ITeamRepository;
+import com.ibm.team.repository.client.ITeamRepository.ILoginHandler;
+import com.ibm.team.repository.client.ITeamRepository.ILoginHandler.ILoginInfo;
+import com.ibm.team.repository.client.TeamPlatform;
+import com.ibm.team.repository.common.TeamRepositoryException;
+
+public class CooperWorkitemsSync {
+
+	private static class LoginHandler implements ILoginHandler, ILoginInfo {
+
+		private String fUserId;
+		private String fPassword;
+
+		private LoginHandler(String userId, String password) {
+			fUserId = userId;
+			fPassword = password;
+		}
+
+		public String getUserId() {
+			return fUserId;
+		}
+
+		public String getPassword() {
+			return fPassword;
+		}
+
+		public ILoginInfo challenge(ITeamRepository repository) {
+			return this;
+		}
+	}
+
+	public static void main(String[] args) {
+
+		boolean result;
+		TeamPlatform.startup();
+		try {
+			result = run(args);
+		} catch (TeamRepositoryException x) {
+			x.printStackTrace();
+			result = false;
+		} finally {
+			TeamPlatform.shutdown();
+		}
+
+		if (!result)
+			System.exit(1);
+
+	}
+
+	private static boolean run(String[] args) throws TeamRepositoryException {
+
+		if (args.length != 3) {
+			System.out.println("Usage: PlainJavaClient [repositoryURI] [userId] [password]");
+			return false;
+		}
+
+		IProgressMonitor monitor = new NullProgressMonitor();
+		String repositoryURI_ccm1 = args[0];
+		String repositoryURI_ccm4 = args[1];
+		String userId = args[2];
+		String password = args[3];
+		
+		List<IWorkItem> ccm1_wis = new ArrayList<IWorkItem>();
+
+		// CCM1-Login
+		ITeamRepository teamRepository1 = TeamPlatform.getTeamRepositoryService().getTeamRepository(repositoryURI_ccm1);
+		teamRepository1.registerLoginHandler(new LoginHandler(userId, password));
+		teamRepository1.login(monitor);
+		System.out.println("Logged in as: "+ teamRepository.1loggedInContributor().getName());
+		IProjectArea projectArea = getProjectArea(args[3]);		
+		
+		//CCM1 - find & execute query and fetch unresloved workitems and add them to ccm1_wis
+		IQueryDescriptor query1 = findPersonalQuery(projectArea, "QueryName", monitor);
+		IQueryResult unresolvedResults_ccm1 = runQuery(teamRepository1, query1);
+		processUnresolvedResults(projectArea, unresolvedResults_ccm1, IWorkItem.FULL_PROFILE, monitor,ccm1_wis);
+		
+		//CCM4-Login
+		ITeamRepository teamRepository4 = TeamPlatform.getTeamRepositoryService().getTeamRepository(repositoryURI_ccm4);
+		teamRepository4.registerLoginHandler(new LoginHandler(userId, password));
+		teamRepository4.login(monitor);
+		System.out.println("Logged in as: "+ teamRepository4.loggedInContributor().getName());
+		
+		//CCM4 - find & execute query and fetch unresloved workitems and add them to ccm4_wis
+		IQueryDescriptor query4 = findPersonalQuery(projectArea, "QueryName", monitor);
+		IQueryResult unresolvedResults_ccm4 = runQuery(teamRepository4, query4);
+		processUnresolvedResults(projectArea, unresolvedResults_ccm4, IWorkItem.FULL_PROFILE, monitor,ccm4_wis);
+		
+		Iterator wiiter1 = ccm1_wis.iterator();
+        while(wiiter1.hasNext()){
+        	IWorkItem wi = (IWorkItem) wiiter1.next();
+        	IWorkItemCommon workItemCommon = (IWorkItemCommon) teamRepository1.getClientLibrary(IWorkItemCommon.class);
+        	IWorkItemHandle workItemHandle = (IWorkItemHandle) teamRepository1.getClientLibrary(IWorkItemHandle.class);
+        	
+        	//TODO:Define the set of attributes to get values from workitems  
+        	IAttribute summaryAttribute= workItemCommon.findAttribute(proj, "com.panasonic.team.workitem.attribute.**********", monitor);
+        	IAttribute linkAttribute= workItemCommon.findAttribute(proj, "com.panasonic.team.workitem.attribute.************", monitor);
+        	
+        	Integer value = null;
+       		if(wi.isAttributeSet(summaryAttribute) && wi.isAttributeSet(linkAttribute)){
+       			//TODO: get each attribute value
+           		value= (Integer)wi.getValue(attribute);
+           	}else{
+           		value = new Integer(0);
+           	}
+       		getLinksByWorkItems(teamRepository1, workItemHandle, monitor, wi);
+       		getAttachmentsByWorkItems(teamRepository1, wi);
+       		
+       		//TODO: Iterator workitems from CCM4 and match the summary attribute value and run query to update the workitem. skip if no Summary found
+        }
+		
+		teamRepository1.logout();
+		teamRepository4.logout();
+		return true;
+	}
+	
+	public static void getLinksByWorkItems(ITeamRepository repo,IWorkItemHandle  workItemHandle, IProgressMonitor monitor, IWorkItem workItem){
+		final ILinkManager linkManager = (ILinkManager) repo.getClientLibrary(ILinkManager.class);
+		final IReference workItemRef = linkManager.referenceFactory().createReferenceToItem(workItemHandle);
+		final ILinkQueryPage queryPage = linkManager.findLinksBySource(linkType, workItemRef, monitor);
+		final Collection<ILink> links = queryPage.getAllLinksFromHereOn();
+		//TODO : add these links to worklitem list
+	    /*for(ILink l : links){  
+	      println("Link is: " + l.getLinkTypeId() + ", url: " + l.getThisEndpointDescriptor(l.getTargetRef()).getIcon());
+	   }*/
+    }
+	
+	public static void getAttachmentsByWorkItems(ITeamRepository repo, IWorkItem workItem){
+		IWorkItemCommon common = (IWorkItemCommon) repo.getClientLibrary(IWorkItemCommon.class);
+		IWorkItemReferences workitemReferences = common.resolveWorkItemReferences(workItem, null);
+		List<IReference> references = workitemReferences.getReferences(WorkItemEndPoints.ATTACHMENT);
+		//TODO : add attachemnt referenes to workitem list
+		for (IReference iReference : references) {
+			IAttachmentHandle attachHandle = (IAttachmentHandle) iReference.resolve();
+			IAuditableClient auditableClient = (IAuditableClient) repo.getClientLibrary(IAuditableClient.class);
+			IAttachment attachment = (IAttachment) auditableClient.resolveAuditable((IAttachmentHandle) attachHandle,IAttachment.DEFAULT_PROFILE, null);
+		}
+	}
+
+	private static IQueryResult runQuery(ITeamRepository teamRepository, IQueryDescriptor query) {
+		IWorkItemClient workItemClient = (IWorkItemClient) teamRepository.getClientLibrary(IWorkItemClient.class);
+		IQueryClient queryClient = workItemClient.getQueryClient();
+		IQueryResult unresolvedResults = queryClient.getQueryResults(query);
+		((QueryResultIterator) unresolvedResults).setLimit(Integer.MAX_VALUE);
+		return unresolvedResults;
+	}
+	
+	/**
+	 * @param projectArea
+	 * @param queryName
+	 * @param monitor
+	 * @return
+	 * @throws TeamRepositoryException
+	 */
+	public static IQueryDescriptor findPersonalQuery(IProjectArea projectArea, String queryName, IProgressMonitor monitor)throws TeamRepositoryException {
+		// Get the required client libraries
+		ITeamRepository teamRepository = (ITeamRepository)projectArea.getOrigin();
+		IWorkItemClient workItemClient = (IWorkItemClient) teamRepository.getClientLibrary(
+			IWorkItemClient.class);
+		IQueryClient queryClient = workItemClient.getQueryClient();
+		// Get the current user.
+		IContributor loggedIn = teamRepository.loggedInContributor();
+		IQueryDescriptor queryToRun = null;
+		// Get all queries of the user in this project area.
+		List queries = queryClient.findPersonalQueries(projectArea.getProjectArea(), loggedIn,QueryTypes.WORK_ITEM_QUERY,IQueryDescriptor.FULL_PROFILE, monitor);
+		// Find a query with a matching name
+		for (Iterator iterator = queries.iterator(); iterator.hasNext();) {
+			IQueryDescriptor iQueryDescriptor = (IQueryDescriptor) iterator.next();
+			if (iQueryDescriptor.getName().equals(queryName)) {
+				queryToRun = iQueryDescriptor;
+				break;
+			}
+		}
+		return queryToRun;
+	}
+	
+	/**
+    * @param projectName
+    * @return
+    */
+   public static IProjectArea getProjectArea(String projectName){
+   	IProgressMonitor monitor = new NullProgressMonitor();
+   	IProcessItemService service= (IProcessItemService) repo1.getClientLibrary(IProcessItemService.class);
+   	Iterator<IProjectArea> foundProjs = null;
+   	try {
+   		foundProjs = service.findAllProjectAreas(null, monitor).iterator();
+   	} catch (TeamRepositoryException e) {
+   		e.printStackTrace();
+   	}
+   	
+   	IProjectArea result = null;
+   	while (foundProjs.hasNext() && result == null){
+   		IProjectArea proj = foundProjs.next();
+   		//System.out.println("Project:"+proj.getName());
+   		if (projectName.equals(proj.getName()))  {
+   			result = proj;
+   		}
+   	
+   	}
+   	return result;
+   }
+   
+   /**
+ * @param projectArea
+ * @param results
+ * @param profile
+ * @param monitor
+ * @throws TeamRepositoryException
+ */
+public static void processUnresolvedResults(IProjectArea projectArea , IQueryResult results, ItemProfile profile, IProgressMonitor monitor, List<IWorkItem> workItemsList)throws TeamRepositoryException {
+			
+		// Get the required client libraries
+		ITeamRepository teamRepository = (ITeamRepository)projectArea.getOrigin();
+		IWorkItemClient workItemClient = (IWorkItemClient) teamRepository.getClientLibrary(IWorkItemClient.class);
+		IAuditableCommon auditableCommon = (IAuditableCommon) teamRepository.getClientLibrary(IAuditableCommon.class);
+		long processed = 0;
+		while (results.hasNext(monitor)) {
+			IResult result = (IResult) results.next(monitor);
+			IWorkItem workItem = auditableCommon.resolveAuditable(
+				(IAuditableHandle) result.getItem(), profile, monitor);
+			// Do something with the work item here
+			workItemsList.add(workItemsList);
+		}
+		System.out.println("Found: "+workItemsList.size()+" Work items");
+	}
+   
+}
