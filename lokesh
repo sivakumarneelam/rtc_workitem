@@ -1,0 +1,96 @@
+package com.example.demo;
+
+import java.io.File;
+import java.io.FilenameFilter;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+
+/**
+ * @author n1510639
+ *
+ */
+public class CIEDIPrepopulateCheckSum {
+	
+	protected static final Logger LOG = LoggerFactory.getLogger(CIEDIPrepopulateCheckSum.class);
+	private static final String Files_Location = "C:\\Users\\n1510639\\process\\CIEDI";
+	private static final String Archive_Source = "archive.root";
+	private static final String Customer_Response = "CUSTOMERRESPONSE";
+	private static final String Element_Expression = "ACORD/ClaimsSvcRq/RqUID";
+	private static final String TXT_ARCHIVE = ".TXT.ARCHIVE";
+	
+	public static void main(String[] args){
+		List<String> requestIdList = populateRequestIds();
+		
+		//TODO :: pass this requestIdList and chcekSum value for each();
+		//TODO :: persist into database.
+	}
+
+	
+	/**
+	 * @return List of requestIds.
+	 */
+	private static List<String> populateRequestIds() {
+		List<String> requestIdList = new ArrayList<>();
+		LOG.info("Reading files from root archive");
+		File dir = new File(Files_Location, Archive_Source);
+		File[] filteredFiles = filterFiles(dir);
+		LOG.debug("File count after filter:{}",filteredFiles.length-1);
+		
+		for (File file : filteredFiles) {
+            String requestUniqueId = getRequestUniqueId(file);
+            if (requestUniqueId != null) {
+                requestIdList.add(requestUniqueId);
+            }
+        }
+		return requestIdList;
+	}
+
+	/**
+	 * @param file
+	 * @return
+	 */
+	private static String getRequestUniqueId(File file) {
+		 LOG.info("File {} is ready for DOM and XPath operations", file);
+		 String requestIdList = null;
+	        try {
+	            DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+	            DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
+	            Document document = documentBuilder.parse(file);
+	            document.normalize();
+	            LOG.info("File {} completed DOM parsing",file);
+	            XPathFactory xPathFactory = XPathFactory.newInstance();
+	            XPath xPath = xPathFactory.newXPath();
+	            requestIdList = xPath.evaluate(Element_Expression,document); 
+	            // Include it in xml
+	            LOG.info("File {} completed XPath traverse", file);
+	            return requestIdList;
+
+	        } catch (Exception e) {
+	            LOG.error("File {} .Caught exception while DOM and XPath operations", file, e);
+	        }
+		return requestIdList;
+	}
+
+	/**
+	 * @param file
+	 * @return
+	 */
+	private static File[] filterFiles(File file) {
+		return file.listFiles(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.toUpperCase().contains(TXT_ARCHIVE) && !name.toUpperCase().contains(Customer_Response);
+			}
+		});
+	}
+
+}
