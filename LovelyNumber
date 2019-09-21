@@ -1,0 +1,28 @@
+/**
+ * We consider a number to be lovely,if it contains fewer than three instances of any distinct digit(in decimal representation).
+ * >Examples of lovely numbers: 0, 100, 1232 and 9922
+ * >Example of numbers that are not lovely: 1000(contains 3 copies of digit '0')
+ * 	33533(contains 4 copies of digit '3').
+ * 
+ * Write a function solution that, given integer A and B,returns the number of lovely integers in the range [A...B] (both ends included).
+ * 
+ * Examples:
+ * 	1.Given A=0, B=0, your function should return 1, because 0 is lovely.
+ * 	2.Given A-1, B=111, your function should return 110, because the only integer in the range [1...111] that is not lovely is 111.
+ * 	3.Given A=100000, B=100000, your function should return 0, because 100000 is not lovely.
+ * 
+ * Assume that:
+ * 		> A and B are integers with in the range [0..100000]
+ * 		> A<=B
+ * 
+ *
+ */
+public class LovelyNumber {
+	
+	public static void main(String[] args) {
+    }
+
+	private static int solution(int A, int B){
+		return 0;
+	}
+}
