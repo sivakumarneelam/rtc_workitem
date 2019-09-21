@@ -1,0 +1,46 @@
+/**
+ * Write a function, class Solution { public String solution(String message, int k); }
+ * 
+ * Which, Given a message and an integer K, returns the message cropped to not more than K characters as described below.
+ * 
+ *  Examples:
+ *  
+ *  1.Given message ="Codelity We test coders" and K=14 then function should return 'Codelity we'.
+ *  2.Given message ="Why not" and K=100 then function should return 'why not'.
+ *  3.Given message ="The quick brown fox jump over the lazy dog" K=39 then function should return 'The quick brown fox jump over the lazy'
+ *  
+ *  Note:
+ *  	>it may not crop away part of word.
+ *  	>the output message may not end with a sapce.
+ *  	>the output message may not exceed K-character limit.
+ *  	>the output message should be as long as possible.
+ *
+ */
+public class CropPerfectString {
+
+	public static void main(String[] args){
+		System.out.println(solution("Codelity We test coders",14));
+		System.out.println(solution("Why not",100));
+		System.out.println(solution("The quick brown fox jump over the lazy dog",39));
+	}
+	
+	public static String solution(String message , int K){
+		
+		if(K >= message.length())
+			return message.trim();
+		if(message == null || message.isEmpty())
+			return message;
+		
+		char[] arr = message.replaceAll("\\s+", "-").toCharArray();
+		
+		if((arr[K-1] != '-') && (arr[K] == '-')){
+			return String.valueOf(arr).substring(0,K).replaceAll("-", " ");
+		}else{
+			for(int i=K-1; i>= 1; i--){
+				if(arr[i] == '-')
+					return String.valueOf(arr).substring(0,i).replaceAll("-", " ").trim();
+			}
+		}
+		return null;
+	}
+}
