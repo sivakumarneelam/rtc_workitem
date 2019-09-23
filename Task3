@@ -59,11 +59,30 @@
 public class Task3 {
 
 	public static void main(String[] args) {
-
+        solution(8, 0);
 	}
 	
 	public static int solution(int N, int K){
-		return 0;
+        int n = N;
+        int fullPlay = 0, play = 0;
+        for(int i = 0; i < K; ) {
+            if(n <= 2) break;
+            if(n % 2 == 0 && n > 2) {
+                n /= 2;
+                fullPlay++;
+                play++;
+                i++;
+            } else {
+                n -= 1;
+                play++;
+            }
+        }
+        while(n > 1) {
+            play++;
+            n--;
+        }
+        System.out.println(n + "play " + play + "\nfullplay " + fullPlay);
+        return 0;
 	}
 
 }
