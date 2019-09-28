@@ -1,14 +1,18 @@
 /**
- * We consider a number to be lovely,if it contains fewer than three instances of any distinct digit(in decimal representation).
+ * We consider a number to be lovely,if it contains fewer than three instances of any distinct 
+ * digit(in decimal representation).
+ * 
  * >Examples of lovely numbers: 0, 100, 1232 and 9922
  * >Example of numbers that are not lovely: 1000(contains 3 copies of digit '0')
  * 	33533(contains 4 copies of digit '3').
  * 
- * Write a function solution that, given integer A and B,returns the number of lovely integers in the range [A...B] (both ends included).
+ * Write a function solution that, given integer A and B,returns the number of lovely integers in the range 
+ * [A...B] (both ends included).
  * 
  * Examples:
  * 	1.Given A=0, B=0, your function should return 1, because 0 is lovely.
- * 	2.Given A-1, B=111, your function should return 110, because the only integer in the range [1...111] that is not lovely is 111.
+ * 	2.Given A=1, B=111, your function should return 110, because the only integer in the range [1...111] that 
+ *    is not lovely is 111.
  * 	3.Given A=100000, B=100000, your function should return 0, because 100000 is not lovely.
  * 
  * Assume that:
@@ -17,12 +21,35 @@
  * 
  *
  */
-public class LovelyNumber {
-	
-	public static void main(String[] args) {
+
+class LovelyNUmber {
+    public static void main(String[] args) {
+        System.out.println(solution(0, 0));
     }
 
-	private static int solution(int A, int B){
-		return 0;
-	}
+    private static int solution(int a, int b){
+        int cnt = 0;
+        while(a <= b) {
+            if(isLovely(a)) {
+                cnt++;
+            }
+            a++;
+        }
+        return cnt;
+    }
+    
+    private static boolean isLovely(int n) {
+        int[] arr = new int[10];
+        while(n > 0) {
+            int rem = n % 10;
+            if(arr[rem] > 2) {
+                return false;
+            } else {
+                arr[rem] = arr[rem] + 1;
+            }
+            n = n / 10;
+        }
+        return true;
+    }
 }
+
