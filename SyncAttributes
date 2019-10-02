@@ -1,0 +1,468 @@
+package com.fmr.PR000029.rtc.workitem.automation;
+
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.commons.io.FileUtils;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.Job;
+
+import com.ibm.team.process.client.IProcessItemService;
+import com.ibm.team.process.common.IProjectArea;
+import com.ibm.team.process.common.IProjectAreaHandle;
+import com.ibm.team.process.common.advice.IOperationReport;
+import com.ibm.team.repository.client.IItemManager;
+import com.ibm.team.repository.client.ITeamRepository;
+import com.ibm.team.repository.client.TeamPlatform;
+import com.ibm.team.repository.common.IExtensibleItem;
+import com.ibm.team.repository.common.TeamRepositoryException;
+import com.ibm.team.workitem.client.IAuditableClient;
+import com.ibm.team.workitem.client.IDetailedStatus;
+import com.ibm.team.workitem.client.IQueryClient;
+import com.ibm.team.workitem.client.IWorkItemClient;
+import com.ibm.team.workitem.client.IWorkItemWorkingCopyManager;
+import com.ibm.team.workitem.client.WorkItemWorkingCopy;
+import com.ibm.team.workitem.common.IAuditableCommon;
+import com.ibm.team.workitem.common.IQueryCommon;
+import com.ibm.team.workitem.common.expression.AttributeExpression;
+import com.ibm.team.workitem.common.expression.IQueryableAttribute;
+import com.ibm.team.workitem.common.expression.IQueryableAttributeFactory;
+import com.ibm.team.workitem.common.expression.QueryableAttributes;
+import com.ibm.team.workitem.common.expression.Term;
+import com.ibm.team.workitem.common.expression.Term.Operator;
+import com.ibm.team.workitem.common.model.AttributeOperation;
+import com.ibm.team.workitem.common.model.IAttribute;
+import com.ibm.team.workitem.common.model.IAttributeHandle;
+import com.ibm.team.workitem.common.model.IWorkItem;
+import com.ibm.team.workitem.common.model.IWorkItemHandle;
+import com.ibm.team.workitem.common.model.IWorkItemType;
+import com.ibm.team.workitem.common.model.ItemProfile;
+import com.ibm.team.workitem.common.query.IQueryResult;
+import com.ibm.team.workitem.common.query.IResolvedResult;
+
+public class SynchronizeAttributesNew {
+
+	private int skipped;
+	private int errors;
+	private int succeeded;
+	private ITeamRepository repo;
+	private IAuditableClient auditable;
+	private IWorkItemClient wiclient;
+	private IProgressMonitor monitor;
+	private IProjectArea proj;	
+	private int featureCount = 0;
+	
+	private static List<IWorkItem> wis;
+	
+
+	public SynchronizeAttributesNew(){
+	}
+	
+	public static void main(String[] args) {
+		boolean retVal = false;
+		if (args.length == 6){
+			File passfile = new File(args[2]);
+			String pass = null;
+			try {
+				pass = FileUtils.readFileToString(passfile, null);
+			} catch (IOException e) {
+				System.err.println( "Error: " + e.getMessage() );
+				System.exit(1);
+			}
+			retVal = new SynchronizeAttributesNew().runme(args[0],args[1],pass,args[3],args[4],args[5]);
+		}/* else if (args.length == 0) {
+			retVal = new SynchronizeAttributes().runme();
+		}*/else{
+			retVal = false;
+			System.err.println("Invald Parameters.  \n\nUsage: java -jar SynchronizeAttributes.jar <url> <user> <passFile> <proj_name>");
+		}
+		System.out.println("Finished Without Errors?: " + retVal);
+		if (retVal){
+			System.exit(0);			
+		}else{
+			System.exit(1);
+		}
+	}
+	
+	public boolean runme(){
+		String url = "https://ptcpasaccbuild1:9443/jazz";
+		final String user = "joem";
+		final String pass = "#cloud1#";
+		String proj_name = "VP4";	
+//		final String user = "";
+//		final String pass = "";
+//		String proj_name = "";	
+		return runme(url, user, pass, proj_name,"xyz", "Resolved");
+	}
+	
+	public boolean runme(String url, final String user, final String pass, String proj_name, String workitemType, String status){
+				
+		startPlatform();
+		skipped = 0;
+		monitor = new NullProgressMonitor();
+		try {
+			repo = TeamPlatform.getTeamRepositoryService().getTeamRepository(url);
+            repo.registerLoginHandler(new ITeamRepository.ILoginHandler() {
+                public ILoginInfo challenge(ITeamRepository repository) {
+                    return new ILoginInfo() {
+                        public String getUserId() {
+                            return user;
+                        }
+                        public String getPassword() {
+                            return pass;                        
+                        }
+                    };
+                }
+            });
+            repo.login(monitor);
+//			repo = RTCLogin.login(monitor);
+		} catch (TeamRepositoryException e) {	
+			System.out.println("Error logging in");
+			e.printStackTrace();
+			return false;
+		}
+		System.out.println("Logged in as: " + user );
+		auditable= (IAuditableClient) repo.getClientLibrary(IAuditableClient.class);
+		wiclient = (IWorkItemClient) repo.getClientLibrary(IWorkItemClient.class);
+		
+		proj = getProjectArea(proj_name);
+		
+		if (proj == null) {
+			System.err.println("***FATAL: Cannot find project area - terminating");
+			return false;
+		}
+		System.out.println("Got Project: "+proj.getName());
+		IProjectAreaHandle projectarea = (IProjectAreaHandle) proj.getItemHandle();
+		
+		
+		List<IWorkItem> features = null;
+		boolean returnVal = true;
+		
+		try {
+			features = findAllWorkItems(projectarea, monitor, auditable);
+		} catch (TeamRepositoryException e) {
+			System.err.println("Problem running query");
+			e.printStackTrace();
+			return false;
+		}
+		featureCount = features.size();
+		DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+		System.out.println("Found "+featureCount+ " work items to Synchronize.  Begining to process. "+dateFormat.format(new Date()));
+		Iterator<IWorkItem> allFeatures = features.iterator();
+		while (allFeatures.hasNext()){			
+			
+			IWorkItem wi = allFeatures.next();
+			try {
+				// Will Sync all attributes
+				syncRecord(wi);
+			} catch (Exception e) {
+				System.err.println("Problem Synchronizing record "+wi.getId()+" "+e.getLocalizedMessage());
+				returnVal = false;
+			}
+			featureCount = featureCount - 1;
+			if ((featureCount % 100) == 0){
+				System.out.println(featureCount + " remaining work items to synchronize "+succeeded+" successfully synched "+skipped+" skipped "+errors+" errors "+dateFormat.format(new Date()));
+			}
+		}
+		
+		
+		stopPlatform();
+		return returnVal;
+	}
+	
+	
+	private boolean syncRecord(IWorkItem wi) throws Exception{
+		IWorkItemWorkingCopyManager wiCopyMgr = wiclient.getWorkItemWorkingCopyManager();
+		IWorkItemHandle workItemHandle = (IWorkItemHandle)wi.getItemHandle();
+		wiCopyMgr.connect(workItemHandle, IWorkItem.FULL_PROFILE,monitor);
+		WorkItemWorkingCopy workItemWorkingCopy = wiCopyMgr.getWorkingCopy(workItemHandle);
+		IWorkItem workItem = workItemWorkingCopy.getWorkItem();
+
+		try {	
+			IWorkItemType type = wiclient.findWorkItemType(workItem.getProjectArea(), workItem.getWorkItemType(), monitor);
+			boolean synched = false;
+			List<IAttributeHandle> typeAtts = type.getCustomAttributes();
+			List<IAttributeHandle> wiAtts = workItem.getCustomAttributes();
+			boolean allFound = true;
+			for (IAttributeHandle typeAtt:typeAtts){
+				boolean found = false;
+				for (IAttributeHandle wiAtt:wiAtts){
+					if (wiAtt.getItemId().equals(typeAtt.getItemId())){
+						found = true;
+						continue;
+					}
+				}
+				if (!found){
+					allFound = false;
+					break;
+				}
+			}
+			if (allFound){
+				System.out.println("NO NEED TO Sync: "+workItem.getId());
+				wiCopyMgr.disconnect(workItemHandle);
+				skipped++;
+				return true;
+			}
+				
+			if (type != null) {
+				synched = wiclient.updateWorkItemType(workItem, type, type, monitor);
+			}
+			if (!synched){
+				System.err.println("WARNING: Attempting to sync work item: "+workItem.getId()+" type: " +workItem.getWorkItemType()+" Failed, this record seems to have already been synched.");
+				wiCopyMgr.disconnect(workItemHandle);
+				errors++;
+				return false;
+			}
+			WorkItemWorkingCopy[] allWorkItems = {workItemWorkingCopy}; 
+			IDetailedStatus saveStatus = wiCopyMgr.save(allWorkItems, monitor);
+			if (!saveStatus.isOK()){
+				IOperationReport saveReport = saveStatus.getOperationReport();
+				if (saveReport.wasRun()){
+					// Save successful
+					succeeded++;
+				}else{
+					System.err.println("WARNING: Attempted to save work item: "+workItem.getId()+" Problem: "+saveStatus.getMessage());
+					wiCopyMgr.disconnect(workItemHandle);
+					errors++;
+					return false;				}
+			}
+		}catch(Exception e){
+			System.err.println("WARNING: Problem Synchronizing attributes for workitem: "+workItem.getId()+" "+e.getLocalizedMessage());
+			PrintStream log = new PrintStream(new FileOutputStream("log.log",true));
+			e.printStackTrace(log);
+			wiCopyMgr.disconnect(workItemHandle);
+			errors++;
+			return false;
+		}
+		wiCopyMgr.disconnect(workItemHandle);
+		return true;
+	}
+	
+	private List<IWorkItem> findAllWorkItems1(IProjectAreaHandle projectArea, IProgressMonitor monitor, IAuditableCommon auditable, String status) throws TeamRepositoryException{
+		wis = new ArrayList<IWorkItem>();
+		IQueryableAttribute typeAtt = findQueryableAttribute(projectArea, IWorkItem.TYPE_PROPERTY, monitor, auditable);
+		IQueryableAttribute projectAreaAttribute= findQueryableAttribute(projectArea, IWorkItem.PROJECT_AREA_PROPERTY, monitor, auditable);
+		AttributeExpression projectAreaExpression= new AttributeExpression(projectAreaAttribute, AttributeOperation.EQUALS, projectArea);
+		Term term = new Term(Operator.AND);
+		term.add(projectAreaExpression);
+		ItemProfile<IWorkItem> profile = getProfile(typeAtt);
+		if(status.equalsIgnoreCase("Resolved")){
+			IQueryResult<IResolvedResult<IWorkItem>> result1 = queryService.getResolvedExpressionResults(projectArea, term, profile);
+			ArrayList jobs = new ArrayList();
+			while(result.hasNext(null)){
+				ResolvedPageJob job = new ResolvedPageJob(repo, wiclient, result.nextPage(null));
+				jobs.add(job);
+				job.setUser(true);
+				job.schedule();
+			}
+			Iterator allJobs = jobs.iterator();
+			while (allJobs.hasNext()){
+				ResolvedPageJob resolvedPageJob = (ResolvedPageJob)allJobs.next();
+				try {
+					resolvedPageJob.join();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}else {
+			IQueryResult<IResolvedResult<IWorkItem>> result2 = queryService.getResolvedExpressionResults(projectArea, term, profile);
+			processUnresolvedResults(projectArea, result2, null,monitor);
+		}
+		
+		return wis;
+	}
+	
+	/**
+	 * @param projectArea
+	 * @param results
+	 * @param operation
+	 * @param monitor
+	 * @throws TeamRepositoryException
+	 */
+	public static void processUnresolvedResults(IProjectArea projectArea, IQueryResult results,
+			WorkItemOperation operation, IProgressMonitor monitor) throws TeamRepositoryException {
+
+		long processed = 0;
+		while (results.hasNext(monitor)) {
+			IResult result = (IResult) results.next(monitor);
+			operation.run((IWorkItemHandle) result.getItem(), monitor);
+			processed++;
+		}
+		//System.out.println("Processed results: " + processed);
+	}
+	
+
+	private List<IWorkItem> findAllWorkItems(IProjectAreaHandle projectArea, IProgressMonitor monitor, IAuditableCommon auditable) throws TeamRepositoryException {
+//		List<Integer> ignoreIds = new ArrayList<Integer>();
+		wis = new ArrayList<IWorkItem>();
+		IQueryableAttribute typeAtt = findQueryableAttribute(projectArea, IWorkItem.TYPE_PROPERTY, monitor, auditable);
+		IQueryableAttribute projectAreaAttribute= findQueryableAttribute(projectArea, IWorkItem.PROJECT_AREA_PROPERTY, monitor, auditable);
+		AttributeExpression projectAreaExpression= new AttributeExpression(projectAreaAttribute, AttributeOperation.EQUALS, projectArea);
+
+		List<IWorkItemType> allTypes = wiclient.findWorkItemTypes(projectArea, monitor);
+		for (IWorkItemType type:allTypes){
+			List<Integer> ignoreIdsType = new ArrayList<Integer>();
+			Term findSynchedRecords = new Term(Operator.OR);
+			List<IAttributeHandle> typeAtts = type.getCustomAttributes();
+			Term typeTerm = new Term(Operator.AND);
+			AttributeExpression typeExpression =new AttributeExpression(typeAtt,AttributeOperation.EQUALS,type.getIdentifier()); 
+			typeTerm.add(typeExpression);
+			for (IAttributeHandle att:typeAtts){
+				IAttribute attObj = (IAttribute) repo.itemManager().fetchCompleteItem(att, IItemManager.REFRESH, monitor);
+				IQueryableAttribute qa = findQueryableAttribute(projectArea,attObj.getIdentifier(),monitor,auditable);
+//				System.out.println("Found type: "+type.getDisplayName()+" att: "+qa.getDisplayName());
+				AttributeExpression ae = new AttributeExpression(qa,AttributeOperation.EXISTS);
+				typeTerm.add(ae);
+			}
+			findSynchedRecords.add(typeTerm);
+			IQueryCommon queryService= (IQueryCommon) repo.getClientLibrary(IQueryClient.class);
+			ItemProfile<IWorkItem> idProfile= IWorkItem.SMALL_PROFILE.createExtension(IWorkItem.ID_PROPERTY);
+			IQueryResult<IResolvedResult<IWorkItem>> resultsToIgnore= queryService.getResolvedExpressionResults(projectArea, findSynchedRecords, idProfile);		
+			resultsToIgnore.setLimit(100000);
+
+			while(resultsToIgnore.hasNext(monitor)){
+				IResolvedResult<IWorkItem> resRes = resultsToIgnore.next(monitor);
+				IWorkItem workItem = (IWorkItem) resRes.getItem();
+				ignoreIdsType.add(workItem.getId());
+			}
+			
+			System.out.println("Found: "+ignoreIdsType.size()+" "+type.getDisplayName()+" type items to ignore");
+			
+			Term term= new Term(Operator.AND);
+			term.add(projectAreaExpression);
+			term.add(typeExpression);
+			IQueryableAttribute idAttribute = findQueryableAttribute(projectArea, IWorkItem.ID_PROPERTY,monitor,auditable);
+
+			for (Integer ignoreInt:ignoreIdsType){
+				AttributeExpression idExpression = new AttributeExpression(idAttribute,AttributeOperation.NOT_EQUALS,ignoreInt);
+				term.add(idExpression);			
+			}
+			System.out.println("Query defined to ignore records, begginging query to find remaining results to sync");
+
+//			String idToFind = "492360";
+//			IQueryableAttribute idAttribute = findQueryableAttribute(projectArea, IWorkItem.ID_PROPERTY,monitor,auditable);
+//			AttributeExpression idExpression = new AttributeExpression(idAttribute,AttributeOperation.EQUALS,idToFind);
+//			term.add(idExpression);
+			
+			ItemProfile<IWorkItem> profile = getProfile(typeAtt);
+			IQueryResult<IResolvedResult<IWorkItem>> result = queryService.getResolvedExpressionResults(projectArea, term, profile);		
+			result.setPageSize(100);
+			result.setLimit(100000);
+			
+			ArrayList jobs = new ArrayList();
+			while(result.hasNext(null)){
+				ResolvedPageJob job = new ResolvedPageJob(repo, wiclient, result.nextPage(null));
+				jobs.add(job);
+				job.setUser(true);
+				job.schedule();
+			}
+			Iterator allJobs = jobs.iterator();
+			while (allJobs.hasNext()){
+				ResolvedPageJob resolvedPageJob = (ResolvedPageJob)allJobs.next();
+				try {
+					resolvedPageJob.join();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+
+		return wis;
+	}
+
+	
+	private IQueryableAttribute findQueryableAttribute(IProjectAreaHandle projectArea, String attributeId, IProgressMonitor monitor, IAuditableCommon auditable) throws TeamRepositoryException {
+		IQueryableAttributeFactory factory= QueryableAttributes.getFactory(IWorkItem.ITEM_TYPE);
+		return factory.findAttribute(projectArea, attributeId, auditable, monitor);
+	}
+		
+	private ItemProfile<IWorkItem> getProfile(IQueryableAttribute attribute) {
+		if (!attribute.isStateExtension())
+			return IWorkItem.SMALL_PROFILE.createExtension(attribute.getIdentifier());
+		return IWorkItem.SMALL_PROFILE.createExtension(IWorkItem.CUSTOM_ATTRIBUTES_PROPERTY, IExtensibleItem.TIMESTAMP_EXTENSIONS_QUERY_PROPERTY);
+	}
+		
+	public IProjectArea getProjectArea(String projectName){
+		IProgressMonitor monitor = new NullProgressMonitor();
+		IProcessItemService service= (IProcessItemService) repo.getClientLibrary(IProcessItemService.class);
+		Iterator<IProjectArea> foundProjs = null;
+		try {
+			foundProjs = service.findAllProjectAreas(null, monitor).iterator();
+		} catch (TeamRepositoryException e) {
+			e.printStackTrace();
+		}
+		
+		IProjectArea result = null;
+		while (foundProjs.hasNext() && result == null){
+			IProjectArea proj = foundProjs.next();
+			if (projectName.equals(proj.getName()))  {
+				result = proj;
+			}
+		}
+		return result;
+	}
+	
+	private void startPlatform(){
+		if (!TeamPlatform.isStarted()){
+			TeamPlatform.startup();
+		}
+	}
+	private void stopPlatform(){
+		if (TeamPlatform.isStarted()){
+			TeamPlatform.shutdown();
+		}
+	}
+	
+	public static class ResolvedPageJob extends Job {
+		private List<IResolvedResult<IWorkItem>> fPage;
+		private ITeamRepository fTeamRepository;
+		private IWorkItemClient fWorkItemClient;
+
+		public ResolvedPageJob( ITeamRepository teamRepository, IWorkItemClient workitemClient, List<IResolvedResult<IWorkItem>> results) {
+			super("Run Page");
+			fTeamRepository=teamRepository;
+			fWorkItemClient=workitemClient;
+			fPage=results;
+		}
+
+		protected IStatus run(IProgressMonitor monitor) {
+			try {
+				processResolvedResultsPaged(fTeamRepository, fWorkItemClient,fPage);
+			} catch (TeamRepositoryException e) {
+				System.out.println("Exception "+e.getLocalizedMessage());
+				return new Status(Status.ERROR,"Me","TeamRepositoryException");
+			}
+			return null;
+		}
+	}
+		
+	public static void processResolvedResultsPaged(ITeamRepository teamRepository,
+			IWorkItemClient workItemClient,
+			List page)
+			throws TeamRepositoryException {
+		long processed = 0;
+		Iterator pages = page.iterator();
+		while (pages.hasNext()){
+			IResolvedResult resolvedResult = (IResolvedResult) pages.next();
+			IWorkItem workItem = (IWorkItem) resolvedResult.getItem();
+			wis.add(workItem);
+			// do something with the work item
+			processed++;
+		}
+//		System.out.println("Processedlts: " + processed);
+	}	
+	
+}
