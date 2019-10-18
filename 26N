@@ -1,0 +1,48 @@
+1)      Do you have experience working on micro-services based architecture?
+		a. Yes.
+		b.  Around 20+ microservices are running in production cloud(on premise for now next year have plan to goto public cloud )and 3 more going live on this December. 
+		c. This count is only belongs to my project. I'm not sure about overall count of micro-services in my current company, mostly in hundreds.
+		d.  Setup: 
+			i. All are Springboot RESTful services, used swagger2.0 and now OpenAPI3.0 to prepare contract first approach as API's.
+			ii. Used SpringJdbc to connect various databases like oracle, DB2 and Amazon RDS. DB calls are secured with SSL.
+			iii. Used docker as container technology to create docker images and concourse to push it to PCF. Configured Autoscaling in PCF.
+			iv. Spring cloud config and Vault used to separate config properties and secrets from code repo.
+			v. Using BitsBucket, Jenkins, Artifactory and Udeploly tools for our CI/CD pipeline.
+			vi. We are using WSO2 for APIM. Planning to adopt Apigee next year.
+			vii. Datadog for logging and telemetry.
+			
+2)      What are the code review best practices and the principles that you follow?
+		a. We have standard checklist for code reviews and we keep update them based on the latest and best ways to write elegant and readable code. 
+		b. The checklist contains best practices like clean code, meaningful names, performance concerns like avoid creating unnecessary objects, String contactizations, avoid  excessive synchronization. 
+		c. More focus on creating re-usable code and valid Junits.
+		d. Make sure you have 80% coverage.
+		e. Code quality things like running Sonar , resolve all critical, major & code smell issues.
+		f. Others like jacoco, veracode and OWAPS checks.
+		
+3)      Have you participated in both: building and maintaining the CI/CD pipelines?
+	Yes, but not  100%, we use a defined set of templates written by our devops engineers in groovy, as developer we take responsibility to understand and enhance it further.
+	 Also we use tool like BitsBucket,Jenkins,Artifactory,Udeploy,DockerFile,concourse.
+	
+4)      Please describe the testing culture within your team/company. Are you responsible for any kind of tests as a developer?
+		a. We test our code in various level in various environments  like QA validation and test automation scripts run on weekly in shared env.
+		b. We have regression and performance  test plan for every quarter, because our release cycle happens quarterly most of the times. 
+		c. As developer our prime focus is to write more Junit test cases, creating test suites in such way to test them in any conditions, also mock external services and db calls i.
+		d. I contributed building test automation using cucumber and serinity(internal framework ) and running them in DIT and SIT envs.
+		
+5)      What 3 qualities, would your colleagues best describe you as having?
+	My squad name is Avengers and they gave Ironman name to me, they describe me as follow, 
+		(i) My colleagues would say that I am team player and a mentor as I give talks on latest tech &tools and take trainings to enable mainframe people to Java & cloud. 
+		(ii)My colleagues have told me that , I am inquisitive about tech and committed to work. found always eager to learn new things and apply in work. humble  respectful of his coworkers and always ready to help colleagues.
+		(iii) I have been told that, I turned a spec into a full solution with everything I picked up, filling in on any missing aspect.
+		
+6)      What skills for your personal development would you like to improve? Do you have any preferences regarding tools/technologies to use at your next workplace?
+             A) I always obsessed with programming paradigm shifts like Functional and Reactive programming to the latest system designs practices. Its continues learnings I do to improve myself, apart from java stack, Python and Angular skills where I'm training on to improve and use at my workplace. 
+            B) Blockchain is something I worked on some production level prototype in Ethereum using Solidity,Web3Js and Remix.  so I'm more focused to use blockchain technologies to innovate things in my workplace.
+7)      Notice period: 30days
+8)      English Level: Proficient 
+9)      Do you require work permit sponsorship to work in the EU?
+		a. Yes
+-          Please note we are very open to overseas applications, we just want to know who, if successful, would require sponsorship?
+
+10)    If you proceed to the next step in our hiring process, you'll be requested to do an online coding challenge. Please write down when you would be available for this challenge so we know when we can send it to you (this is important because once we've sent the test case you only have two days to complete it). We recommend sending us a weekend. 
+I will be available next weekend  i.e. on 26th and 27th Oct.
