@@ -1,0 +1,49 @@
+/**
+ * A non-negative integer variable V is given. They are two actions available that modify its vaule
+ * 		>If V is odd subtract 1 from  it.
+ * 		>If V is even divide it by 2.
+ * These actions performed until the value of V becomes 0.
+ * 
+ * For example, if V initially contains value 28, it will become 0 after 7 steps.
+ * 
+ *  > V=28 which is even: divide by 2 and its obtain 14.
+ *  > V=14 which is even: divide by 2 and its obtain 7.
+ *  > V=7 which is odd: subtract by 1 and its obtain 6.
+ *  > V=6 which is even: divide by 2 and its obtain 3.
+ *  > V=3 which is odd: subtract by 1 and its obtain 2.
+ *  > V=2 which is even: divide by 2 and its obtain 1.
+ *  > V=1 which is odd: subtract by 1 and its obtain 0.
+ *  
+ *  Write a function class Solution{ public int solution(String S); }
+ *  
+ *  that,given zero-indexed String S consisting of N characters containing a binay representation of the initial value
+ *  of variable V, returns number of steps after which the value of V will become 0, as described above.  
+ *
+ */
+public class StringTest1 {
+
+	public static void main(String[] args) {
+		System.out.println(solution("011100")); // 011100 - value is 28.
+	}
+	
+	/**
+	 * @param S
+	 * @return
+	 */
+	public static int solution(String S){
+		
+		Integer i = Integer.parseInt(S, 2);
+		int n = i.intValue();
+		int count = 0;
+		while (n > 0) {
+			if (n % 2 == 0) {
+				n = n / 2;
+			} else {
+				n = n - 1;
+			}
+			count++;
+		}
+		return count;
+	}
+
+}
