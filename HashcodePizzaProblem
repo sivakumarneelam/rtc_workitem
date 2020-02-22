@@ -1,0 +1,47 @@
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author Sivakumar Neelam
+ * 
+ *         Input: ---------------- M=17 N=4(max number pizza's to use) 2,5,6,8
+ *         array of integers in sorted order which are nothing but slices of
+ *         each pizza. like p0 = 2, p1 = 5, p2 = 6, p3 = 8.
+ * 
+ *         Output ------------------ K=3 (max pizza can order) 0,2,3 (pizza numbers)
+ *         should order
+ * 
+ *         now 2+6+8 = 16 which is the closest one to 17.
+ * 
+ *        Note:- we should not order pizza's more than the required slices.
+ *         ____________________
+ * 
+ * 
+ *         Few more sample inputs:
+ * 
+ *
+ */
+public class ProblemStatement1 {
+
+	public static void main(String[] args) {
+
+		int[] arr = { 2, 5, 6, 8 };
+		int M = 17;
+		int N = 4;
+		orderPizza(M, N, arr);
+
+	}
+
+	private static void orderPizza(int totalSlices, int maxNumPizza, int[] arr) {
+		List<Integer> result = new ArrayList<>();
+		for(int i = maxNumPizza-1; i>=0;i--){
+			if(arr[i] <= totalSlices){
+				totalSlices -= arr[i];
+				result.add(i);
+			}
+		}
+		System.out.println("Max pizza to order="+result.size());
+		System.out.println("Pizza numbers="+result.toString());
+	}
+
+}
